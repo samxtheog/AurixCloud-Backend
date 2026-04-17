@@ -1979,6 +1979,17 @@ setInterval(autoManageServerLifecycle, 60 * 60 * 1000);
 // Run once on startup
 autoManageServerLifecycle();
 
+// ── Self-ping to keep Render free tier alive ──
+const SELF_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+setInterval(async () => {
+  try {
+    await axios.get(SELF_URL);
+    console.log(`[ping] ${new Date().toISOString()} — kept alive`);
+  } catch (e) {
+    console.warn(`[ping] failed: ${e.message}`);
+  }
+}, 5 * 60 * 1000); // every 5 minutes
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });
