@@ -1871,7 +1871,69 @@ app.post('/api/user/servers/:serverId/renew', async (req, res) => {
   }
 });
 
-// User: Get server expiration info
+// User: Get ALL server expirations for the logged-in user
+app.get('/api/user/server-expirations', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ error: 'No token provided' });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    const expData = await readServerExpirationsData();
+    const now = new Date();
+
+    const userExpirations = expData.expirations
+      .filter(e => String(e.userId) === String(decoded.id))
+      .map(e => {
+        const expDate = new Date(e.expirationDate);
+        const daysLeft = Math.ceil((expDate - now) / (1000 * 60 * 60 * 24));
+        return {
+          ...e,
+          days_left: daysLeft,
+          is_expired: expDate < now,
+          is_expiring_soon: daysLeft <= 7 && daysLeft > 0
+        };
+      });
+
+    res.json({ data: userExpirations });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// User: Get server expiration info by serverId param
+app.get('/api/user/server-expirations/:serverId', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ error: 'No token provided' });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    const expData = await readServerExpirationsData();
+    const now = new Date();
+
+    const exp = expData.expirations.find(e =>
+      String(e.serverId) === String(req.params.serverId) &&
+      String(e.userId) === String(decoded.id)
+    );
+
+    if (!exp) return res.status(404).json({ error: 'Not found' });
+
+    const expDate = new Date(exp.expirationDate);
+    const daysLeft = Math.ceil((expDate - now) / (1000 * 60 * 60 * 24));
+
+    res.json({
+      data: {
+        ...exp,
+        days_left: daysLeft,
+        is_expired: expDate < now,
+        is_expiring_soon: daysLeft <= 7 && daysLeft > 0
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// User: Get server expiration info (legacy route with serverId in path)
 app.get('/api/user/servers/:serverId/expiration', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
