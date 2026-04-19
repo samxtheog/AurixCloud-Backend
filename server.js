@@ -1248,7 +1248,7 @@ app.patch('/api/admin/invoices/:id', adminOnly, async (req, res) => {
   try {
     const data = await readInvoicesData();
     const index = data.invoices.findIndex(inv => inv._id === req.params.id);
-    
+
     if (index === -1) {
       return res.status(404).json({ error: 'Invoice not found' });
     }
@@ -1256,14 +1256,30 @@ app.patch('/api/admin/invoices/:id', adminOnly, async (req, res) => {
     const invoice = data.invoices[index];
     const newStatus = req.body.status;
 
-    // Only allow manual approval for paid invoices or manual intervention
-    if (newStatus === 'approved' && invoice.status === 'paid') {
+    if (newStatus === 'approved') {
+      // Admin can approve from ANY status — no payment required
       invoice.status = 'approved';
       invoice.approvedAt = new Date().toISOString();
+      invoice.paidAt = invoice.paidAt || new Date().toISOString();
       invoice.updatedAt = new Date().toISOString();
+
+      data.invoices[index] = invoice;
+      await writeInvoicesData(data);
+
+      // Trigger server creation in background
+      createServerForInvoice(invoice).catch(err =>
+        console.error('Server creation error after admin approval:', err.message)
+      );
+
+      return res.json({ data: invoice, message: 'Invoice approved — server creation started' });
+
     } else if (newStatus === 'rejected') {
       invoice.status = 'rejected';
       invoice.rejectedAt = new Date().toISOString();
+      invoice.updatedAt = new Date().toISOString();
+    } else {
+      // Allow setting any other status directly
+      invoice.status = newStatus;
       invoice.updatedAt = new Date().toISOString();
     }
 
